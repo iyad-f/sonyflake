@@ -145,7 +145,7 @@ Examples can be found in the `examples directory <https://github.com/iyad-f/sony
 Links
 =====
 - `Documentation <https://sonyflake.readthedocs.io/en/latest/>`_
-- `Source code <https://github.com/Soheab/discord-py-paginators>`_
+- `Source code <https://github.com/iyad-f/sonyflake>`_
 
 Contact
 =======
