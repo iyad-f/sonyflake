@@ -1,0 +1,289 @@
+[project]
+name = "sonyflake"
+description = "A distributed unique ID generator inspired by Twitter's Snowflake"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+license = "Apache-2.0"
+license-files = ["LICEN[CS]E.*"]
+requires-python = ">=3.11"
+authors = [
+    { name = "Iyad"}
+]
+keywords = ["sonyflake", "sonyflake py", "sonyflake", "snowflake", "snowflake py", "snowflake.py"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+]
+dynamic = ["version"]
+dependencies = [
+    "sphinxcontrib-trio>=1.1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/iyad-f/sonyflake"
+Issues = "https://github.com/iyad-f/sonyflake/issues"
+Repository = "https://github.com/iyad-f/sonyflake"
+
+[dependency-groups]
+docs = [
+    "furo>=2024.8.6",
+    "sphinx>=8.1.3",
+]
+lint = [
+    "ruff>=0.12.0",
+]
+tests = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+]
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.hatch.metadata]
+# direct dependency references, e.g `pip @ git+https://github.com/pypa/pip.git@master`
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "src/sonyflake/__init__.py"
+
+[tool.hatch.build]
+dev-mode-dirs = ["src", "."]
+ignore-vcs = true
+sources = ["src"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [".github", "docs"]
+include = ["src/*", "tests/*", "LICENSE"]
+skip-excluded-dirs = false
+
+[tool.hatch.build.targets.wheel]
+packages = ["sonyflake"]
+
+[tool.pyright]
+include = ["src"]
+exclude = [
+    "**/__pycache__",
+    "build",
+    "dist",
+    "docs",
+]
+
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
+analyzeUnannotatedFunctions = true
+disableBytesTypePromotions = true
+strictParameterNoneValue = true
+enableTypeIgnoreComments = true
+enableReachabilityAnalysis = true
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
+deprecateTypingAliases = false
+enableExperimentalFeatures = false
+reportMissingTypeStubs = "error"
+reportMissingModuleSource = "warning"
+reportInvalidTypeForm = "error"
+reportMissingImports = "error"
+reportUndefinedVariable = "error"
+reportAssertAlwaysTrue = "none"
+reportInvalidStringEscapeSequence = "error"
+reportInvalidTypeVarUse = "error"
+reportSelfClsParameterName = "error"
+reportUnsupportedDunderAll = "error"
+reportUnusedExpression = "warning"
+reportWildcardImportFromLibrary = "error"
+reportAbstractUsage = "error"
+reportArgumentType = "error"
+reportAssertTypeFailure = "error"
+reportAssignmentType = "error"
+reportAttributeAccessIssue = "error"
+reportCallIssue = "error"
+reportGeneralTypeIssues = "error"
+reportInconsistentOverload = "error"
+reportIndexIssue = "error"
+reportInvalidTypeArguments = "error"
+reportNoOverloadImplementation = "error"
+reportOperatorIssue = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+reportRedeclaration = "error"
+reportReturnType = "error"
+reportTypedDictNotRequiredAccess = "error"
+reportPrivateImportUsage = "warning"
+reportUnboundVariable = "error"
+reportUnhashable = "error"
+reportUnusedCoroutine = "warning"
+reportUnusedExcept = "error"
+reportFunctionMemberAccess = "error"
+reportIncompatibleMethodOverride = "error"
+reportIncompatibleVariableOverride = "error"
+reportOverlappingOverload = "error"
+reportPossiblyUnboundVariable = "error"
+reportConstantRedefinition = "error"
+reportDeprecated = "warning"
+reportDuplicateImport = "none"
+reportIncompleteStub = "error"
+reportInconsistentConstructor = "error"
+reportInvalidStubStatement = "error"
+reportMatchNotExhaustive = "error"
+reportMissingParameterType = "error"
+reportMissingTypeArgument = "error"
+reportPrivateUsage = "warning"
+reportTypeCommentUsage = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportUnknownMemberType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnnecessaryCast = "warning"
+reportUnnecessaryComparison = "none"
+reportUnnecessaryContains = "none"
+reportUnnecessaryIsInstance = "none"
+reportUnusedClass = "warning"
+reportUnusedImport = "warning"
+reportUnusedFunction = "warning"
+reportUnusedVariable = "warning"
+reportUntypedBaseClass = "error"
+reportUntypedClassDecorator = "error"
+reportUntypedFunctionDecorator = "error"
+reportUntypedNamedTuple = "warning"
+reportCallInDefaultInitializer = "warning"
+reportImplicitOverride = "none"
+reportImplicitStringConcatenation = "warning"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportShadowedImports = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "warning"
+reportUnusedCallResult = "none"
+
+[tool.ruff]
+line-length = 125
+target-version = "py311"
+exclude = ["docs/"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "A", "ANN", "ASYNC", "B", "BLE", "C4", "COM", "D", "DOC", "DTZ", "E",
+    "EM", "ERA", "F", "FA", "FBT", "FURB", "G", "I", "ICN", "INP", "ISC", "LOG", "NPY",
+    "PD", "PERF", "PGH", "PIE", "PLC", "PLE", "PLR", "PLW", "PTH", "PYI",
+    "Q", "Q003", "RET", "RSE", "RUF", "S", "SIM", "SLOT", "T20", "TC", "TID",
+    "TRY", "UP", "W", "YTT"
+]
+
+ignore = [
+    "DOC201", # Not docing generic return types
+    "DOC501", # Not explicitly documenting raised exception types
+    "ANN202", # implied return fine sometimes
+    "ANN401",  # Any is the correct type in some cases
+    "ASYNC116", # Long sleeps are fine
+    "B901", # I'm aware of how generators as coroutines work
+    "B903", # nope, handwritten types are fine actually.
+    "C90",  # mccabe complexity memes
+    "COM812", # ruff format suggested
+    "D100", # no, module level docs aren't always neededd
+    "D105", # documenting magic methods is often dumb.
+    "D107", # __init__ is the wrong place to doc this.
+    "E501", # ruff format suggested
+    "FBT003", # Wrong end to enforce this on.
+    "G002",  # erroneous issue with %-logging when logging can be confiured for % logging
+    "ISC001", # ruff format suggested
+    "PLC0105",  # no, I don't like co naming style for typevars
+    "PLC0415", # ruff gets this wrong, import needs to be not at top of file in some cases
+    "PLR0912", # too many branches
+    "PLR0913", # number of function arguments
+    "PLR0915",  # too many statements.... in an async entrypoint handling graceful shutdown...
+    "PLR0917",  # too many positional arguments
+    "PLR2004",  # Magic value comparison, may remove later
+    "RUF001",  # ambiguous characters not something I want to enforce here.
+    "RUF029",  # no, don't try andd tell me I'm wrong for async def when something is for an interface.
+    "S101",  # use of assert here is a known quantity, blame typing memes
+    "S311",  # Yes, I know that standard pseudo-random generators are not suitable for cryptographic purposes
+    "SIM105",  # supressable exception, I'm not paying the overhead of contextlib.supress for stylistic choices.
+    "TC001", # I prefer to avoid if TYPE_CHECKING
+    "TC002", # I prefer to avoid if TYPE_CHECKING
+    "TC003", # I prefer to avoid if TYPE_CHECKING
+    "UP007", # "Use | For Union" doesn't account for typevar tuple unpacking.
+    "UP031", # No, I like % formatting more for some things...
+    "UP038", # isinstance on union types... perf + type construct symmetry issues.
+    # As PYI058 modifies return values to be more narrow than they actually are
+    "PYI058", # This opinionated "fix" causes incompatabilties with things expecting a generator.
+]
+unfixable = [
+    "E501",  # line length handled in other ways by ruff format
+    "ERA",  # Don't delete commented out code
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "INP001", # we don't import tests generally
+    "D" # we don't write docs for tests generally
+]
+"examples/*" = [
+    "INP001", # we don't import examples
+    "T201",   # we showcase examples using print
+    "D" # we don't write docs for examples generally
+]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = true
+combine-as-imports = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.flake8-annotations]
+allow-star-arg-any = true
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+parametrize-names-type = "csv"
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+
+[tool.ruff.lint.flake8-comprehensions]
+allow-dict-calls-with-keyword-arguments = true
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# https://discuss.python.org/t/problems-with-typeis/55410/6
+# https://discuss.python.org/t/problems-with-typeis/55410/46
+# Until what can go into a TypeIs/TypeGuard changes, these are just dangerous.
+
+"typing.TypeIs".msg = "TypeIs is fundamentally unsafe, even when using it as described to be safe"
+"typing.TypeGuard".msg = "TypeGuard is fundamentally unsafe"
+"typing_extensions.TypeIs".msg = "TypeIs is fundamentally unsafe, even when using it as described to be safe"
+"typing_extensions.TypeGuard".msg = "TypeGuard is fundamentally unsafe"
+"typing.runtime_checkable".msg = "Runtime checkable is fundamentally unsafe."
+"typing_extensions.runtime_checkable".msg = "Runtime checkable is fundamentally unsafe."
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["tests"]

@@ -1,0 +1,53 @@
+# Credit: https://github.com/AbstractUmbra/Hondana/blob/main/.github/workflows/coverage_and_lint.yaml
+
+name: Type Coverage and Linting
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.x"]
+
+    name: "Type Coverage and Linting @ ${{ matrix.python-version }}"
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          activate-environment: true
+
+      - name: Install deps @ ${{ matrix.python-version }}
+        run: |
+          uv sync --locked --all-extras --all-groups
+
+      - name: "Run Pyright @ ${{ matrix.python-version }}"
+        uses: jakebailey/pyright-action@v2
+        with:
+          warnings: false
+          verify-types: "sonyflake"
+          ignore-external: true
+          annotate: ${{ matrix.python-version != '3.x' && 'all' || 'none' }}
+
+      - uses: astral-sh/ruff-action@v3
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Format check
+        run: ruff format --check .
