@@ -10,7 +10,7 @@ in specific versions.
 
 .. _v0p1p0:
 
-v1.0.0
+v1.0.1
 -------
 
 - Initial Release
