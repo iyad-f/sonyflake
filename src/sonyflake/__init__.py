@@ -9,7 +9,7 @@ __title__ = "sonyflake"
 __author__ = "Iyad"
 __license__ = "Apache-2.0"
 __copyright__ = "Copyright 2025-present Iyad"
-__version__ = "1.0.1"
+__version__ = "1.0.0"
 
 
 from .sonyflake import (
