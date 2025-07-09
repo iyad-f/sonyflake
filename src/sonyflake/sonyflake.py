@@ -402,6 +402,8 @@ class Sonyflake(_BaseSonyflake):
 
     Raises
     ------
+    ValueError
+        If start time is not provided.
     InvalidBitsSequence
         If the provided bit length for the sequence number is invalid.
     InvalidBitsMachineID
@@ -479,6 +481,8 @@ class AsyncSonyflake(_BaseSonyflake):
 
     Raises
     ------
+    ValueError
+        If start time is not provided.
     InvalidBitsSequence
         If the provided bit length for the sequence number is invalid.
     InvalidBitsMachineID
