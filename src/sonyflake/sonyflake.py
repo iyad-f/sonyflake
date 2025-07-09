@@ -282,8 +282,7 @@ class _BaseSonyflake:
         return time | sequence | self._machine_id
 
     def to_time(self, sonyflake_id: int) -> datetime.datetime:
-        """
-        Convert a Sonyflake ID to its corresponding UTC datetime.
+        """Convert a Sonyflake ID to its corresponding UTC datetime.
 
         Parameters
         ----------
@@ -299,8 +298,7 @@ class _BaseSonyflake:
         return datetime.datetime.fromtimestamp(ns / 1e9, tz=datetime.UTC)
 
     def compose(self, dt: datetime.datetime, sequence: int, machine_id: int) -> int:
-        """
-        Compose a Sonyflake ID from datetime, sequence, and machine ID.
+        """Compose a Sonyflake ID from datetime, sequence, and machine ID.
 
         Parameters
         ----------
@@ -346,8 +344,7 @@ class _BaseSonyflake:
         return time | seq | machine_id
 
     def decompose(self, sonyflake_id: int) -> DecomposedSonyflake:
-        """
-        Decompose a Sonyflake ID into its components.
+        """Decompose a Sonyflake ID into its components.
 
         Parameters
         ----------
