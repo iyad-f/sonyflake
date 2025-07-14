@@ -1,8 +1,7 @@
-"""A python implementation of sonyflake.
+"""A distributed unique ID generator inspired by Twitter's Snowflake.
 
 :copyright: (c) 2025-present Iyad
 :license: Apache License, Version 2.0, see LICENSE for more details.
-
 """
 
 __title__ = "sonyflake"
