@@ -53,26 +53,6 @@ Development
 Usage
 =====
 
-Creating a new Sonyflake instance.
-
-Sync
-----
-
-.. code-block:: python
-
-    from sonyflake import Sonyflake
-
-    sf = Sonyflake()
-
-Async
------
-
-.. code-block:: python
-
-    from sonyflake import AsyncSonyflake
-
-    sf = AsyncSonyflake()
-
 You can configure Sonyflake with the following options:
 
 - ``bits_sequence`` is the bit length of a sequence number.
