@@ -73,3 +73,5 @@ class TestSonyflake:
 
         with pytest.raises(OverTimeLimit):
             sf.next_id()
+
+    # TODO: add a test for testing to_time.
