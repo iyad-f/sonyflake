@@ -1,3 +1,3 @@
-Initial release of the package!
+This release brings improvements to the asynchronous version of Sonyflake and various documentation corrections.
 
-Documentation can be found at https://sonyflake.readthedocs.io/en/latest/
+Changelog: https://sonyflake.readthedocs.io/en/latest/whats_new.html#v1-1-0
