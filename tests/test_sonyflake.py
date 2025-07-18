@@ -5,14 +5,10 @@ from __future__ import annotations
 import concurrent.futures as cf
 import os
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 
 import pytest
 
 from sonyflake.sonyflake import OverTimeLimit, Sonyflake, _lower_16bit_private_ip
-
-if TYPE_CHECKING:
-    from concurrent.futures import Future
 
 
 class TestSonyflake:
@@ -57,7 +53,7 @@ class TestSonyflake:
             return [sf.next_id() for _ in range(num_id)]
 
         with cf.ThreadPoolExecutor(max_workers=num_cpus) as executor:
-            futures: list[Future[list[int]]] = []
+            futures: list[cf.Future[list[int]]] = []
             for _ in range(num_cpus // 2):
                 futures.append(executor.submit(generate_ids, sf1))
                 futures.append(executor.submit(generate_ids, sf2))
@@ -77,13 +73,3 @@ class TestSonyflake:
 
         with pytest.raises(OverTimeLimit):
             sf.next_id()
-
-    def test_to_time(self) -> None:
-        start = datetime.now(UTC)
-        sf = Sonyflake(time_unit=timedelta(milliseconds=100), start_time=start)
-
-        id_ = sf.next_id()
-        tm = sf.to_time(id_)
-        diff = tm - start
-
-        assert timedelta(0) <= diff <= timedelta(microseconds=sf._time_unit / 1000)

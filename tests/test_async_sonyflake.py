@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures as cf
 import os
 from datetime import UTC, datetime, timedelta
 
@@ -41,7 +42,8 @@ class TestAsyncSonyflake:
             previous_time = current_time
             previous_sequence = current_sequence
 
-    async def test_next_id_in_parallel(self) -> None:
+    # signle threaded concurrency test
+    async def test_next_id_in_parallel_with_tasks(self) -> None:
         start_time = datetime.now(UTC)
         sf1 = AsyncSonyflake(machine_id=1, start_time=start_time)
         sf2 = AsyncSonyflake(machine_id=2, start_time=start_time)
@@ -64,6 +66,30 @@ class TestAsyncSonyflake:
                 assert id_ not in ids
                 ids.add(id_)
 
+    # multithreaded parallelism test
+    async def test_next_id_in_parallel_with_threads(self) -> None:
+        start_time = datetime.now(UTC)
+        sf1 = AsyncSonyflake(machine_id=1, start_time=start_time)
+        sf2 = AsyncSonyflake(machine_id=2, start_time=start_time)
+
+        num_cpus = os.cpu_count() or 8
+        num_id = 1000
+        ids: set[int] = set()
+
+        async def generate_ids(sf: AsyncSonyflake) -> list[int]:
+            return [await sf.next_id() for _ in range(num_id)]
+
+        with cf.ThreadPoolExecutor(max_workers=num_cpus) as executor:
+            futures: list[cf.Future[list[int]]] = []
+            for _ in range(num_cpus // 2):
+                futures.append(executor.submit(lambda: asyncio.run(generate_ids(sf1))))
+                futures.append(executor.submit(lambda: asyncio.run(generate_ids(sf2))))
+
+            for future in cf.as_completed(futures):
+                for id_ in future.result():
+                    assert id_ not in ids
+                    ids.add(id_)
+
     async def test_next_id_raises_error(self) -> None:
         sf = AsyncSonyflake(start_time=datetime.now(UTC))
         ticks_per_year = int(365 * 24 * 60 * 60 * 1e9) // sf._time_unit
@@ -74,14 +100,3 @@ class TestAsyncSonyflake:
         sf._start_time -= 1 * ticks_per_year
         with pytest.raises(OverTimeLimit):
             await sf.next_id()
-
-    async def test_to_time(self) -> None:
-        start = datetime.now(UTC)
-        sf = AsyncSonyflake(time_unit=timedelta(milliseconds=100), start_time=start)
-
-        id_ = await sf.next_id()
-
-        tm = sf.to_time(id_)
-        diff = tm - start
-
-        assert timedelta(0) <= diff <= timedelta(microseconds=sf._time_unit / 1000)

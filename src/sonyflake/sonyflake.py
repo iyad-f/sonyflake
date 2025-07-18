@@ -16,15 +16,18 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures as cf
 import datetime
 import ipaddress
 import socket
 import threading
 import time
+from collections import deque
 from typing import TYPE_CHECKING, NamedTuple, NotRequired, TypedDict, Unpack
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Literal
 
 __all__ = (
     "AsyncSonyflake",
@@ -456,10 +459,59 @@ class Sonyflake(_BaseSonyflake):
         time.sleep(sleep_ns / 1e9)
 
 
-class AsyncSonyflake(_BaseSonyflake):
-    """An asynchronous distributed unique ID generator.
+# Thanks to the discussion with sinbad.
+class _AsyncLock:
+    __slots__ = ("_internal_lock", "_locked", "_waiters")
 
-    This variant of Sonyflake is designed for use in asynchronous applications.
+    _waiters: deque[cf.Future[None]]
+    _internal_lock: threading.RLock
+    _locked: bool
+
+    def __init__(self) -> None:
+        self._waiters = deque()
+        self._internal_lock = threading.RLock()
+        self._locked = False
+
+    async def __aenter__(self) -> None:
+        with self._internal_lock:
+            # Incase you are wondering why the all check
+            # https://discuss.python.org/t/preventing-yield-inside-certain-context-managers/1091
+            # https://peps.python.org/pep-0789/
+            if not self._locked and all(w.cancelled() for w in self._waiters):
+                self._locked = True
+                return
+
+            fut: cf.Future[None] = cf.Future()
+            self._waiters.append(fut)
+
+        try:
+            await asyncio.wrap_future(fut)
+        except (asyncio.CancelledError, cf.CancelledError):
+            if fut.done() and not fut.cancelled():
+                with self._internal_lock:
+                    self._locked = False
+                    self._wake_next()
+            raise
+
+    async def __aexit__(self, *_: object) -> Literal[False]:
+        with self._internal_lock:
+            self._locked = False
+            self._wake_next()
+        return False
+
+    def _wake_next(self) -> None:
+        while self._waiters:
+            fut = self._waiters.popleft()
+            if not fut.cancelled() and not fut.done():
+                self._locked = True
+                fut.set_result(None)
+                break
+
+
+class AsyncSonyflake(_BaseSonyflake):
+    """A distributed unique ID generator.
+
+    This variant of Sonyflake is designed for asynchronous applications.
 
     Parameters
     ----------
@@ -490,15 +542,18 @@ class AsyncSonyflake(_BaseSonyflake):
         If the provided or generated machine ID is invalid.
     StartTimeAhead
         If the start time is set in the future.
+
+    .. versionadded:: 1.1.0
+       Support for multithreaded async environments.
     """
 
     __slots__ = ("_lock",)
 
-    _lock: asyncio.Lock
+    _lock: _AsyncLock
 
     def __init__(self, **options: Unpack[_SonyflakeOptions]) -> None:
         super().__init__(**options)
-        self._lock = asyncio.Lock()
+        self._lock = _AsyncLock()
 
     async def next_id(self) -> int:
         """Return the next unique id.

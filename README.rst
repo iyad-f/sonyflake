@@ -18,7 +18,7 @@ As a result, Sonyflake has the following advantages and disadvantages:
 - It can generate 2^8 IDs per 10 msec at most in a single instance (fewer than Snowflake)
 
 However, if you want more generation rate in a single host,
-you can easily run multiple Sonyflake or AsyncSonyflake instances in parallel using threads or asyncio tasks.
+you can easily run multiple Sonyflake instances using threads or AsyncSonyflake instances using threads and asyncio tasks.
 
 In addition, you can adjust the lifetime and generation rate of Sonyflake
 by customizing the bit assignment and the time unit.
