@@ -1,9 +1,9 @@
 sonyflake
-============
+=========
 
 Sonyflake is a distributed unique ID generator inspired by `Twitter's Snoflake <https://blog.twitter.com/2010/announcing-snowflake>`_.
 
-This is a python rewrite of the original `sony/sonyflake <https://github.com/sony/sonyflake>`_ project, written in Go.
+This project is a Python implementation inspired by the original `sony/sonyflake <https://github.com/sony/sonyflake>`_ project, written in Go.
 
 Sonyflake focuses on lifetime and performance on many host/core environment. So it has a different bit assignment from Snowflake. By default, a Sonyflake ID is composed of:
 
@@ -18,7 +18,7 @@ As a result, Sonyflake has the following advantages and disadvantages:
 - It can generate 2^8 IDs per 10 msec at most in a single instance (fewer than Snowflake)
 
 However, if you want more generation rate in a single host,
-you can easily run multiple Sonyflake instances using threads or AsyncSonyflake instances using threads and asyncio tasks.
+you can easily run multiple Sonyflake instances using threads or asyncio tasks.
 
 In addition, you can adjust the lifetime and generation rate of Sonyflake
 by customizing the bit assignment and the time unit.
@@ -80,7 +80,8 @@ You can configure Sonyflake with the following options:
 The bit length of time is calculated by ``63 - bits_sequence - bits_machine_id``.
 If it is less than 32, an error is raised.
 
-In order to get a new unique ID, you just have to call the method ``next_id``.
+To obtain a new unique ID, use the ``next_id`` or ``next_id_async`` methods depending on whether you
+are in a synchronous or asynchronous environment.
 
 Sync
 ----
@@ -104,18 +105,18 @@ Async
     import asyncio
     import datetime
 
-    from sonyflake import AsyncSonyflake
+    from sonyflake import Sonyflake
 
 
     async def main() -> None:
         start_time = datetime.datetime(2025, 1, 1, 0, 0, 0, 0, datetime.UTC)
-        sf = AsyncSonyflake(start_time=start_time)
-        next_id = await sf.next_id()
+        sf = Sonyflake(start_time=start_time)
+        next_id = await sf.next_id_async()
         print(next_id)
 
     asyncio.run(main())
 
-``next_id`` can continue to generate IDs for about 174 years from ``start_time`` by default.
+``next_id`` or ``next_id_async`` can continue to generate IDs for about 174 years from ``start_time`` by default.
 But after the Sonyflake time is over the limit, ``next_id`` raises an error.
 
 Examples

@@ -11,12 +11,6 @@ Sonyflake
 .. autoclass:: Sonyflake
    :members:
 
-AsyncSonyflake
---------------
-
-.. autoclass:: AsyncSonyflake
-   :members:
-
 DecomposedSonyflake
 -------------------
 

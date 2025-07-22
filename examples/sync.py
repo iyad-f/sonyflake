@@ -19,8 +19,12 @@ def main() -> None:
         machine_id=120,
         check_machine_id=check_machine_id,
     )
+    print(sf)
     next_id = sf.next_id()
     print(next_id)
+    print(sf.to_time(next_id))
+    print(sf.compose(datetime.datetime.now(datetime.UTC), 0, 0))
+    print(sf.decompose(next_id))
 
 
 main()

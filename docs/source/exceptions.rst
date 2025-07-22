@@ -32,6 +32,9 @@ Configuration Exceptions
 .. autoclass:: InvalidMachineID
    :members:
 
+.. autoclass:: MachineIDCheckFailure
+   :members:
+
 .. autoclass:: StartTimeAhead
    :members:
 

@@ -8,11 +8,10 @@ __title__ = "sonyflake"
 __author__ = "Iyad"
 __license__ = "Apache-2.0"
 __copyright__ = "Copyright 2025-present Iyad"
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 
 from .sonyflake import (
-    AsyncSonyflake,
     DecomposedSonyflake,
     InvalidBitsMachineID,
     InvalidBitsSequence,
@@ -20,6 +19,7 @@ from .sonyflake import (
     InvalidMachineID,
     InvalidSequence,
     InvalidTimeUnit,
+    MachineIDCheckFailure,
     NoPrivateAddress,
     OverTimeLimit,
     Sonyflake,
@@ -28,7 +28,6 @@ from .sonyflake import (
 )
 
 __all__ = (
-    "AsyncSonyflake",
     "DecomposedSonyflake",
     "InvalidBitsMachineID",
     "InvalidBitsSequence",
@@ -36,6 +35,7 @@ __all__ = (
     "InvalidMachineID",
     "InvalidSequence",
     "InvalidTimeUnit",
+    "MachineIDCheckFailure",
     "NoPrivateAddress",
     "OverTimeLimit",
     "Sonyflake",

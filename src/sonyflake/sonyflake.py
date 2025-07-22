@@ -27,10 +27,9 @@ from typing import TYPE_CHECKING, NamedTuple, NotRequired, TypedDict, Unpack
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Literal
+    from typing import Final, Literal
 
 __all__ = (
-    "AsyncSonyflake",
     "DecomposedSonyflake",
     "InvalidBitsMachineID",
     "InvalidBitsSequence",
@@ -38,6 +37,7 @@ __all__ = (
     "InvalidMachineID",
     "InvalidSequence",
     "InvalidTimeUnit",
+    "MachineIDCheckFailure",
     "NoPrivateAddress",
     "OverTimeLimit",
     "Sonyflake",
@@ -45,11 +45,11 @@ __all__ = (
     "StartTimeAhead",
 )
 
-DEFAULT_BITS_TIME = 39
-DEFAULT_BITS_SEQUENCE = 8
-DEFAULT_BITS_MACHINE_ID = 16
-
-DEFAULT_TIME_UNIT = int(1e7)
+DEFAULT_BITS_TIME: Final = 39
+DEFAULT_BITS_SEQUENCE: Final = 8
+DEFAULT_BITS_MACHINE_ID: Final = 16
+DEFAULT_TIME_UNIT: Final = 10_000_000  # 10msec
+SECOND_NS: Final = 1_000_000_000
 
 
 class SonyflakeError(Exception):
@@ -91,16 +91,29 @@ class InvalidTimeUnit(SonyflakeError):
 class InvalidSequence(SonyflakeError):
     """Raised when the sequence number is out of valid range."""
 
-    def __init__(self) -> None:
-        msg = "sequence number must be between 0 and 2^bits_sequence - 1 (inclusive)."
+    def __init__(self, bits_sequence: int) -> None:
+        max_value = (1 << bits_sequence) - 1
+        msg = f"sequence number must be between 0 and {max_value} (inclusive) for bits_sequence={bits_sequence}."
         super().__init__(msg)
 
 
 class InvalidMachineID(SonyflakeError):
     """Raised when the computed machine ID is out of range or fails validation."""
 
-    def __init__(self, message: str | None = None) -> None:
-        msg = message or "machine id must be between 0 and 2^bits_machine_id - 1 (inclusive)."
+    def __init__(self, bits_machine_id: int) -> None:
+        max_value = (1 << bits_machine_id) - 1
+        msg = f"machine id must be between 0 and {max_value} (inclusive) for bits_machine_id={bits_machine_id}"
+        super().__init__(msg)
+
+
+class MachineIDCheckFailure(SonyflakeError):
+    """Raised when a machine ID fails the validation check.
+
+    .. versionadded:: 2.0
+    """
+
+    def __init__(self, machine_id: int) -> None:
+        msg = f"machine id validation failed for {machine_id=}."
         super().__init__(msg)
 
 
@@ -133,10 +146,11 @@ class DecomposedSonyflake(NamedTuple):
 
     This structure holds the individual components of a 64-bit Sonyflake ID.
 
+    .. versionchanged:: 2.0
+       The ``id`` attribute was removed.
+
     Attributes
     ----------
-    id : int
-        The original 64-bit Sonyflake ID.
     time : int
         The time portion of the ID.
     sequence : int
@@ -145,7 +159,6 @@ class DecomposedSonyflake(NamedTuple):
         The machine identifier portion of the ID.
     """
 
-    id: int
     time: int
     sequence: int
     machine_id: int
@@ -175,6 +188,81 @@ def _utcnow() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
 
+# Thanks to the discussion with Sinbad :).
+class _HybridLock:
+    __slots__ = ("_internal_lock", "_locked", "_waiters")
+
+    _waiters: deque[cf.Future[None]]
+    _internal_lock: threading.Lock
+    _locked: bool
+
+    def __init__(self) -> None:
+        self._waiters = deque()
+        self._internal_lock = threading.Lock()
+        self._locked = False
+
+    async def __aenter__(self) -> None:
+        with self._internal_lock:
+            # Incase you are wondering why the all check
+            # https://discuss.python.org/t/preventing-yield-inside-certain-context-managers/1091
+            # https://peps.python.org/pep-0789/
+            if not self._locked and all(w.cancelled() for w in self._waiters):
+                self._locked = True
+                return
+
+            fut: cf.Future[None] = cf.Future()
+            self._waiters.append(fut)
+
+        try:
+            await asyncio.wrap_future(fut)
+        except (asyncio.CancelledError, cf.CancelledError):
+            with self._internal_lock:
+                if fut.done() and not fut.cancelled():
+                    self._locked = False
+                    self.__wake_next()
+            raise
+
+    async def __aexit__(self, *_: object) -> Literal[False]:
+        return self.__release()
+
+    def __enter__(self) -> None:
+        with self._internal_lock:
+            if not self._locked and all(w.cancelled() for w in self._waiters):
+                self._locked = True
+                return
+
+            fut: cf.Future[None] = cf.Future()
+            self._waiters.append(fut)
+
+        try:
+            fut.result()
+        except cf.CancelledError:
+            with self._internal_lock:
+                if fut.done() and not fut.cancelled():
+                    self._locked = False
+                    self.__wake_next()
+            raise
+
+    def __exit__(self, *_: object) -> Literal[False]:
+        return self.__release()
+
+    def __release(self) -> Literal[False]:
+        with self._internal_lock:
+            self._locked = False
+            self.__wake_next()
+        return False
+
+    def __wake_next(self) -> None:
+        # Not acquiring the lock here, since this function is gonna be called
+        # from a locked context.
+        while self._waiters:
+            fut = self._waiters.popleft()
+            if not fut.cancelled() and not fut.done():
+                self._locked = True
+                fut.set_result(None)
+                break
+
+
 class _SonyflakeOptions(TypedDict):
     bits_sequence: NotRequired[int]
     bits_machine_id: NotRequired[int]
@@ -184,205 +272,7 @@ class _SonyflakeOptions(TypedDict):
     check_machine_id: NotRequired[Callable[[int], bool]]
 
 
-class _BaseSonyflake:
-    __slots__ = (
-        "_bits_machine_id",
-        "_bits_sequence",
-        "_bits_time",
-        "_elapsed_time",
-        "_machine_id",
-        "_sequence",
-        "_start_time",
-        "_time_unit",
-    )
-
-    _bits_sequence: int
-    _bits_machine_id: int
-    _bits_time: int
-    _time_unit: int
-    _start_time: int
-    _elapsed_time: int
-    _sequence: int
-    _machine_id: int
-
-    def __init__(self, **options: Unpack[_SonyflakeOptions]) -> None:
-        bits_sequence = options.pop("bits_sequence", DEFAULT_BITS_SEQUENCE)
-        if not 0 <= bits_sequence <= 30:
-            raise InvalidBitsSequence
-
-        bits_machine_id = options.pop("bits_machine_id", DEFAULT_BITS_MACHINE_ID)
-        if not 0 <= bits_machine_id <= 30:
-            raise InvalidBitsMachineID
-
-        bits_time = 63 - bits_sequence - bits_machine_id
-        if bits_time < 32:
-            raise InvalidBitsTime
-
-        self._bits_sequence = bits_sequence
-        self._bits_machine_id = bits_machine_id
-        self._bits_time = bits_time
-
-        try:
-            time_unit = options.pop("time_unit")
-        except KeyError:
-            self._time_unit = DEFAULT_TIME_UNIT
-        else:
-            if time_unit < datetime.timedelta(milliseconds=1):
-                raise InvalidTimeUnit
-
-            self._time_unit = int(time_unit.total_seconds() * 1e9)
-
-        try:
-            start_time = options["start_time"]
-        except KeyError:
-            msg = "'start_time' is required"
-            raise ValueError(msg) from None
-        else:
-            start_time = start_time.astimezone(datetime.UTC)
-            if start_time > _utcnow():
-                raise StartTimeAhead
-
-        self._start_time = self._to_internal_time(start_time)
-        self._elapsed_time = 0
-
-        self._sequence = (1 << self._bits_sequence) - 1
-
-        try:
-            machine_id = options.pop("machine_id")
-        except KeyError:
-            machine_id = _lower_16bit_private_ip()
-
-        if not 0 <= machine_id < (1 << bits_machine_id):
-            raise InvalidMachineID
-
-        try:
-            check_machine_id = options.pop("check_machine_id")
-        except KeyError:
-            pass
-        else:
-            if not check_machine_id(machine_id):
-                msg = "machine id check failed"
-                raise InvalidMachineID(msg)
-
-        self._machine_id = machine_id
-
-    def _to_internal_time(self, dt: datetime.datetime) -> int:
-        # not doing dt.astimezone(datetime.UTC) here since, we will
-        # pass the dt with timezone set to UTC.
-        unix_ns = int(dt.timestamp() * 1e9)
-        return unix_ns // self._time_unit
-
-    def _current_elapsed_time(self) -> int:
-        return self._to_internal_time(_utcnow()) - self._start_time
-
-    def _to_id(self) -> int:
-        max_elapsed_time = (1 << self._bits_time) - 1
-        if self._elapsed_time > max_elapsed_time:
-            raise OverTimeLimit(max_elapsed_time)
-
-        time = self._elapsed_time << (self._bits_sequence + self._bits_machine_id)
-        sequence = self._sequence << self._bits_machine_id
-        return time | sequence | self._machine_id
-
-    def to_time(self, sonyflake_id: int) -> datetime.datetime:
-        """Convert a Sonyflake ID to its corresponding UTC datetime.
-
-        Parameters
-        ----------
-        sonyflake_id : int
-            The Sonyflake ID to convert.
-
-        Returns
-        -------
-        datetime.datetime
-            The UTC datetime corresponding to the given ID.
-        """
-        ns = (self._start_time + self._time_part(sonyflake_id)) * self._time_unit
-        return datetime.datetime.fromtimestamp(ns / 1e9, tz=datetime.UTC)
-
-    def compose(self, dt: datetime.datetime, sequence: int, machine_id: int) -> int:
-        """Compose a Sonyflake ID from datetime, sequence, and machine ID.
-
-        Parameters
-        ----------
-        dt : datetime.datetime
-            The datetime at which the ID is generated. Must be timezone-aware in UTC.
-        sequence : int
-            A number between 0 and 2^bits_sequence - 1 (inclusive).
-        machine_id : int
-            A number between 0 and 2^bits_machine_id - 1 (inclusive).
-
-        Returns
-        -------
-        int
-            The composed Sonyflake ID.
-
-        Raises
-        ------
-        StartTimeAhead
-            If the datetime is before the configured start time.
-        OverTimeLimit
-            If the elapsed time exceeds the representable range.
-        InvalidSequence
-            If the sequence value is out of range.
-        InvalidMachineID
-            If the machine ID is out of range.
-        """
-        elapsed_time = self._to_internal_time(dt) - self._start_time
-        if elapsed_time < 0:
-            raise StartTimeAhead
-
-        max_elapsed_time = (1 << self._bits_time) - 1
-        if elapsed_time > max_elapsed_time:
-            raise OverTimeLimit(max_elapsed_time)
-
-        if not 0 <= sequence < (1 << self._bits_sequence):
-            raise InvalidSequence
-
-        if not 0 <= machine_id < (1 << self._bits_machine_id):
-            raise InvalidMachineID
-
-        time = elapsed_time << (self._bits_sequence + self._bits_machine_id)
-        seq = sequence << self._bits_machine_id
-        return time | seq | machine_id
-
-    def decompose(self, sonyflake_id: int) -> DecomposedSonyflake:
-        """Decompose a Sonyflake ID into its components.
-
-        Parameters
-        ----------
-        sonyflake_id : int
-            The Sonyflake ID to decompose.
-
-        Returns
-        -------
-        DecomposedSonyflake
-            A named tuple with the fields: `id`, `time`, `sequence`, `machine_id`.
-        """
-        time = self._time_part(sonyflake_id)
-        sequence = self._sequence_part(sonyflake_id)
-        machine_id = self._machine_id_part(sonyflake_id)
-
-        return DecomposedSonyflake(
-            id=sonyflake_id,
-            time=time,
-            sequence=sequence,
-            machine_id=machine_id,
-        )
-
-    def _time_part(self, sonyflake_id: int) -> int:
-        return sonyflake_id >> (self._bits_sequence + self._bits_machine_id)
-
-    def _sequence_part(self, sonyflake_id: int) -> int:
-        mask_sequence = ((1 << self._bits_sequence) - 1) << self._bits_machine_id
-        return (sonyflake_id & mask_sequence) >> self._bits_machine_id
-
-    def _machine_id_part(self, sonyflake_id: int) -> int:
-        mask_machine_id = (1 << self._bits_machine_id) - 1
-        return sonyflake_id & mask_machine_id
-
-
-class Sonyflake(_BaseSonyflake):
+class Sonyflake:
     """A distributed unique ID generator.
 
     Parameters
@@ -416,13 +306,89 @@ class Sonyflake(_BaseSonyflake):
         If the start time is set in the future.
     """
 
-    __slots__ = ("_lock",)
+    __slots__ = (
+        "_bits_machine_id",
+        "_bits_sequence",
+        "_bits_time",
+        "_elapsed_time",
+        "_lock",
+        "_machine_id",
+        "_sequence",
+        "_start_time",
+        "_time_unit",
+    )
 
-    _lock: threading.Lock
+    _bits_machine_id: int
+    _bits_sequence: int
+    _bits_time: int
+    _elapsed_time: int
+    _lock: _HybridLock
+    _machine_id: int
+    _sequence: int
+    _start_time: int
+    _time_unit: int
 
     def __init__(self, **options: Unpack[_SonyflakeOptions]) -> None:
-        super().__init__(**options)
-        self._lock = threading.Lock()
+        bits_sequence = options.pop("bits_sequence", DEFAULT_BITS_SEQUENCE)
+        if not 0 <= bits_sequence <= 30:
+            raise InvalidBitsSequence
+
+        bits_machine_id = options.pop("bits_machine_id", DEFAULT_BITS_MACHINE_ID)
+        if not 0 <= bits_machine_id <= 30:
+            raise InvalidBitsMachineID
+
+        bits_time = 63 - bits_sequence - bits_machine_id
+        if bits_time < 32:
+            raise InvalidBitsTime
+
+        self._bits_sequence = bits_sequence
+        self._bits_machine_id = bits_machine_id
+        self._bits_time = bits_time
+
+        try:
+            time_unit = options.pop("time_unit")
+        except KeyError:
+            self._time_unit = DEFAULT_TIME_UNIT
+        else:
+            if time_unit < datetime.timedelta(milliseconds=1):
+                raise InvalidTimeUnit
+
+            self._time_unit = int(time_unit.total_seconds() * SECOND_NS)
+
+        try:
+            start_time = options["start_time"]
+        except KeyError:
+            msg = "'start_time' is required"
+            raise ValueError(msg) from None
+        else:
+            start_time = start_time.astimezone(datetime.UTC)
+            if start_time > _utcnow():
+                raise StartTimeAhead
+
+        self._start_time = self._to_internal_time(start_time)
+        self._elapsed_time = 0
+
+        self._sequence = (1 << self._bits_sequence) - 1
+
+        try:
+            machine_id = options.pop("machine_id")
+        except KeyError:
+            machine_id = _lower_16bit_private_ip()
+
+        if not 0 <= machine_id < (1 << bits_machine_id):
+            raise InvalidMachineID(bits_machine_id)
+
+        try:
+            check_machine_id = options.pop("check_machine_id")
+        except KeyError:
+            pass
+        else:
+            if not check_machine_id(machine_id):
+                raise MachineIDCheckFailure(machine_id)
+
+        self._machine_id = machine_id
+
+        self._lock = _HybridLock()
 
     def next_id(self) -> int:
         """Return the next unique id.
@@ -453,110 +419,13 @@ class Sonyflake(_BaseSonyflake):
 
             return self._to_id()
 
-    def _sleep(self, overtime: int) -> None:
-        now_ns = int(_utcnow().timestamp() * 1e9)
-        sleep_ns = (overtime * self._time_unit) - (now_ns % self._time_unit)
-        time.sleep(sleep_ns / 1e9)
-
-
-# Thanks to the discussion with sinbad.
-class _AsyncLock:
-    __slots__ = ("_internal_lock", "_locked", "_waiters")
-
-    _waiters: deque[cf.Future[None]]
-    _internal_lock: threading.RLock
-    _locked: bool
-
-    def __init__(self) -> None:
-        self._waiters = deque()
-        self._internal_lock = threading.RLock()
-        self._locked = False
-
-    async def __aenter__(self) -> None:
-        with self._internal_lock:
-            # Incase you are wondering why the all check
-            # https://discuss.python.org/t/preventing-yield-inside-certain-context-managers/1091
-            # https://peps.python.org/pep-0789/
-            if not self._locked and all(w.cancelled() for w in self._waiters):
-                self._locked = True
-                return
-
-            fut: cf.Future[None] = cf.Future()
-            self._waiters.append(fut)
-
-        try:
-            await asyncio.wrap_future(fut)
-        except (asyncio.CancelledError, cf.CancelledError):
-            if fut.done() and not fut.cancelled():
-                with self._internal_lock:
-                    self._locked = False
-                    self._wake_next()
-            raise
-
-    async def __aexit__(self, *_: object) -> Literal[False]:
-        with self._internal_lock:
-            self._locked = False
-            self._wake_next()
-        return False
-
-    def _wake_next(self) -> None:
-        while self._waiters:
-            fut = self._waiters.popleft()
-            if not fut.cancelled() and not fut.done():
-                self._locked = True
-                fut.set_result(None)
-                break
-
-
-class AsyncSonyflake(_BaseSonyflake):
-    """A distributed unique ID generator.
-
-    This variant of Sonyflake is designed for asynchronous applications.
-
-    .. versionchanged:: 1.1.0
-        Support for multithreaded async environments.
-
-    Parameters
-    ----------
-    bits_sequence : int, optional
-        Number of bits allocated for the sequence number (the default is `8`).
-    bits_machine_id : int, optional
-        Number of bits allocated for the machine ID (the default is `16`).
-    time_unit : datetime.timedelta, optional
-        Minimum time unit used for incrementing IDs (the default is 10 milliseconds).
-    start_time : datetime.datetime
-        The custom epoch from which time is measured.
-    machine_id : int, optional
-        Custom machine ID to use (the default is the lower 16 bits of the machine's private IP address).
-    check_machine_id : Callable[[int], bool], optional
-        Function to validate the generated or provided machine ID (the default is `None`, which disables validation).
-
-    Raises
-    ------
-    ValueError
-        If start time is not provided.
-    InvalidBitsSequence
-        If the provided bit length for the sequence number is invalid.
-    InvalidBitsMachineID
-        If the provided bit length for the machine ID is invalid.
-    InvalidTimeUnit
-        If the time unit is smaller than 1 millisecond.
-    InvalidMachineID
-        If the provided or generated machine ID is invalid.
-    StartTimeAhead
-        If the start time is set in the future.
-    """
-
-    __slots__ = ("_lock",)
-
-    _lock: _AsyncLock
-
-    def __init__(self, **options: Unpack[_SonyflakeOptions]) -> None:
-        super().__init__(**options)
-        self._lock = _AsyncLock()
-
-    async def next_id(self) -> int:
+    async def next_id_async(self) -> int:
         """Return the next unique id.
+
+        This coroutine is the asynchronous version of :meth:`Sonyflake.next_id`
+        and is intended for use in asynchronous applications.
+
+        .. versionadded:: 2.0
 
         Returns
         -------
@@ -580,11 +449,150 @@ class AsyncSonyflake(_BaseSonyflake):
                 if self._sequence == 0:
                     self._elapsed_time += 1
                     overtime = self._elapsed_time - current
-                    await self._sleep(overtime)
+                    await self._sleep_async(overtime)
 
             return self._to_id()
 
-    async def _sleep(self, overtime: int) -> None:
-        now_ns = int(_utcnow().timestamp() * 1e9)
+    def to_time(self, sonyflake_id: int) -> datetime.datetime:
+        """Convert a Sonyflake ID to its corresponding UTC datetime.
+
+        Parameters
+        ----------
+        sonyflake_id : int
+            The Sonyflake ID to convert.
+
+        Returns
+        -------
+        datetime.datetime
+            The UTC datetime corresponding to the given ID.
+        """
+        ns = (self._start_time + self._time_part(sonyflake_id)) * self._time_unit
+        return datetime.datetime.fromtimestamp(ns / SECOND_NS, tz=datetime.UTC)
+
+    def compose(self, dt: datetime.datetime, sequence: int, machine_id: int) -> int:
+        """Compose a Sonyflake ID from datetime, sequence, and machine ID.
+
+        .. versionchanged:: 2.0
+            The ``dt`` parameter no longer needs to be in UTC and maybe
+            timezone-aware or naieve. If ``dt`` is naive (has no timezone),
+            it is assumed to be in the system local timezone.
+
+        Parameters
+        ----------
+        dt : datetime.datetime
+            The datetime at which the ID is generated.
+        sequence : int
+            A number between 0 and 2^bits_sequence - 1 (inclusive).
+        machine_id : int
+            A number between 0 and 2^bits_machine_id - 1 (inclusive).
+
+        Returns
+        -------
+        int
+            The composed Sonyflake ID.
+
+        Raises
+        ------
+        StartTimeAhead
+            If the datetime is before the configured start time.
+        OverTimeLimit
+            If the elapsed time exceeds the representable range.
+        InvalidSequence
+            If the sequence value is out of range.
+        InvalidMachineID
+            If the machine ID is out of range.
+        """
+        elapsed_time = self._to_internal_time(dt) - self._start_time
+        if elapsed_time < 0:
+            raise StartTimeAhead
+
+        max_elapsed_time = (1 << self._bits_time) - 1
+        if elapsed_time > max_elapsed_time:
+            raise OverTimeLimit(max_elapsed_time)
+
+        if not 0 <= sequence < (1 << self._bits_sequence):
+            raise InvalidSequence(self._bits_sequence)
+
+        if not 0 <= machine_id < (1 << self._bits_machine_id):
+            raise InvalidMachineID(self._bits_machine_id)
+
+        time = elapsed_time << (self._bits_sequence + self._bits_machine_id)
+        seq = sequence << self._bits_machine_id
+        return time | seq | machine_id
+
+    def decompose(self, sonyflake_id: int) -> DecomposedSonyflake:
+        """Decompose a Sonyflake ID into its components.
+
+        Parameters
+        ----------
+        sonyflake_id : int
+            The Sonyflake ID to decompose.
+
+        Returns
+        -------
+        DecomposedSonyflake
+            A named tuple with the fields: `id`, `time`, `sequence`, `machine_id`.
+        """
+        time = self._time_part(sonyflake_id)
+        sequence = self._sequence_part(sonyflake_id)
+        machine_id = self._machine_id_part(sonyflake_id)
+
+        return DecomposedSonyflake(
+            time=time,
+            sequence=sequence,
+            machine_id=machine_id,
+        )
+
+    def _to_internal_time(self, dt: datetime.datetime) -> int:
+        dt = dt.astimezone(tz=datetime.UTC)
+        unix_ns = int(dt.timestamp() * SECOND_NS)
+        return unix_ns // self._time_unit
+
+    def _current_elapsed_time(self) -> int:
+        return self._to_internal_time(_utcnow()) - self._start_time
+
+    def _to_id(self) -> int:
+        max_elapsed_time = (1 << self._bits_time) - 1
+        if self._elapsed_time > max_elapsed_time:
+            raise OverTimeLimit(max_elapsed_time)
+
+        time = self._elapsed_time << (self._bits_sequence + self._bits_machine_id)
+        sequence = self._sequence << self._bits_machine_id
+        return time | sequence | self._machine_id
+
+    def _time_part(self, sonyflake_id: int) -> int:
+        return sonyflake_id >> (self._bits_sequence + self._bits_machine_id)
+
+    def _sequence_part(self, sonyflake_id: int) -> int:
+        mask_sequence = ((1 << self._bits_sequence) - 1) << self._bits_machine_id
+        return (sonyflake_id & mask_sequence) >> self._bits_machine_id
+
+    def _machine_id_part(self, sonyflake_id: int) -> int:
+        mask_machine_id = (1 << self._bits_machine_id) - 1
+        return sonyflake_id & mask_machine_id
+
+    def _sleep(self, overtime: int) -> None:
+        now_ns = int(_utcnow().timestamp() * SECOND_NS)
         sleep_ns = (overtime * self._time_unit) - (now_ns % self._time_unit)
-        await asyncio.sleep(sleep_ns / 1e9)
+        time.sleep(sleep_ns / SECOND_NS)
+
+    async def _sleep_async(self, overtime: int) -> None:
+        now_ns = int(_utcnow().timestamp() * SECOND_NS)
+        sleep_ns = (overtime * self._time_unit) - (now_ns % self._time_unit)
+        await asyncio.sleep(sleep_ns / SECOND_NS)
+
+    def __repr__(self) -> str:
+        start_time = str(datetime.datetime.fromtimestamp((self._start_time * self._time_unit) / SECOND_NS, tz=datetime.UTC))
+        elapsed_time = str(datetime.timedelta(seconds=(self._elapsed_time * self._time_unit) / SECOND_NS))
+        time_unit = str(datetime.timedelta(seconds=self._time_unit / SECOND_NS))
+        return (
+            f"{self.__class__.__name__}("
+            f"bits_machine_id={self._bits_machine_id!r}, "
+            f"bits_sequence={self._bits_sequence!r}, "
+            f"bits_time={self._bits_time!r}, "
+            f"elapsed_time={elapsed_time!r}, "
+            f"machine_id={self._machine_id!r}, "
+            f"sequence={self._sequence!r}, "
+            f"start_time={start_time!r}, "
+            f"time_unit={time_unit!r})"
+        )
