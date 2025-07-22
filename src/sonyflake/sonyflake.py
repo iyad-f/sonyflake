@@ -543,8 +543,8 @@ class AsyncSonyflake(_BaseSonyflake):
     StartTimeAhead
         If the start time is set in the future.
 
-    .. versionadded:: 1.1.0
-       Support for multithreaded async environments.
+    .. versionchanged:: 1.1.0
+        Support for multithreaded async environments.
     """
 
     __slots__ = ("_lock",)
