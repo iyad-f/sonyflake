@@ -513,6 +513,9 @@ class AsyncSonyflake(_BaseSonyflake):
 
     This variant of Sonyflake is designed for asynchronous applications.
 
+    .. versionchanged:: 1.1.0
+        Support for multithreaded async environments.
+
     Parameters
     ----------
     bits_sequence : int, optional
@@ -542,9 +545,6 @@ class AsyncSonyflake(_BaseSonyflake):
         If the provided or generated machine ID is invalid.
     StartTimeAhead
         If the start time is set in the future.
-
-    .. versionchanged:: 1.1.0
-        Support for multithreaded async environments.
     """
 
     __slots__ = ("_lock",)
