@@ -28,5 +28,4 @@ async def main() -> None:
     print(sf.decompose(next_id))
 
 
-
 asyncio.run(main())
