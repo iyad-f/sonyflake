@@ -16,7 +16,7 @@ v1.1.0
 New Features
 ~~~~~~~~~~~~
 
-- Add support for multithreaded async environments in AsyncSonyflake.
+- Add support for multithreaded async environments in :class:`AsyncSonyflake`.
 
 Miscellaneous
 ~~~~~~~~~~~~~
