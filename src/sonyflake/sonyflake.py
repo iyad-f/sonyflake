@@ -531,7 +531,7 @@ class Sonyflake:
         Returns
         -------
         DecomposedSonyflake
-            A named tuple with the fields: `id`, `time`, `sequence`, `machine_id`.
+            A named tuple with the fields: `time`, `sequence`, `machine_id`.
         """
         time = self._time_part(sonyflake_id)
         sequence = self._sequence_part(sonyflake_id)
