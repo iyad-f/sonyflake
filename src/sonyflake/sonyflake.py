@@ -98,7 +98,7 @@ class InvalidSequence(SonyflakeError):
 
 
 class InvalidMachineID(SonyflakeError):
-    """Raised when the computed machine ID is out of range or fails validation."""
+    """Raised when the computed machine ID is out of range."""
 
     def __init__(self, bits_machine_id: int) -> None:
         max_value = (1 << bits_machine_id) - 1
