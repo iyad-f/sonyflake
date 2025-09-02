@@ -1,7 +1,7 @@
 sonyflake
 =========
 
-Sonyflake is a distributed unique ID generator inspired by `Twitter's Snoflake <https://blog.twitter.com/2010/announcing-snowflake>`_.
+Sonyflake is a distributed unique ID generator inspired by `Twitter's Snowflake <https://blog.twitter.com/2010/announcing-snowflake>`_.
 
 This project is a Python implementation inspired by the original `sony/sonyflake <https://github.com/sony/sonyflake>`_ project, written in Go.
 
