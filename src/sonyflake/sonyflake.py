@@ -178,7 +178,7 @@ def _pick_private_ip(ips: list[str]) -> ipaddress.IPv4Address:
 
 
 def _lower_16bit_private_ip() -> int:
-    _, __, ips = socket.gethostbyname_ex(socket.getfqdn())
+    *_, ips = socket.gethostbyname_ex(socket.getfqdn())
     ip = _pick_private_ip(ips)
     ip_bytes = ip.packed
     return (ip_bytes[2] << 8) + ip_bytes[3]
