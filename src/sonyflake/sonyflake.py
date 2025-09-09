@@ -19,7 +19,9 @@ import asyncio
 import concurrent.futures as cf
 import datetime
 import ipaddress
+import platform
 import socket
+import subprocess
 import threading
 import time
 from collections import deque
@@ -177,9 +179,25 @@ def _pick_private_ip(ips: list[str]) -> ipaddress.IPv4Address:
     raise NoPrivateAddress
 
 
+def _macos_reliable_ip() -> ipaddress.IPv4Address:
+    result = subprocess.run(["/usr/bin/osascript", "-e", "IPv4 address of (system info)"], capture_output=True, check=True)
+    ip_str = result.stdout.decode("utf-8").removesuffix("\n")
+    return ipaddress.IPv4Address(ip_str)
+
+
 def _lower_16bit_private_ip() -> int:
-    *_, ips = socket.gethostbyname_ex(socket.getfqdn())
-    ip = _pick_private_ip(ips)
+    # socket.gethostbyname_ex(socket.getfqdn()) fails on some macbooks (tbh, most from what i have tested).
+    # reference: https://github.com/python/cpython/issues/79345
+    try:
+        *_, ips = socket.gethostbyname_ex(socket.gethostname())
+        ip = _pick_private_ip(ips)
+
+    except socket.gaierror:
+        if platform.system() != "Darwin":
+            raise
+
+        ip = _macos_reliable_ip()
+
     ip_bytes = ip.packed
     return (ip_bytes[2] << 8) + ip_bytes[3]
 
