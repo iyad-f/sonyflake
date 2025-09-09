@@ -8,6 +8,14 @@ Changelog
 This page keeps a detailed human friendly rendering of what's new and changed
 in specific versions.
 
+.. _v2p0p1:
+
+v2.0.1
+
+Bug Fixes
+~~~~~~~~~
+- Fix failing to get private IP address on macos.
+
 .. _v2p0p0:
 
 v2.0.0
