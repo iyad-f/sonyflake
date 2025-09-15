@@ -189,7 +189,7 @@ def _lower_16bit_private_ip() -> int:
     # socket.gethostbyname_ex(socket.getfqdn()) fails on some macbooks (tbh, most from what i have tested).
     # reference: https://github.com/python/cpython/issues/79345
     try:
-        *_, ips = socket.gethostbyname_ex(socket.gethostname())
+        *_, ips = socket.gethostbyname_ex(socket.getfqdn())
         ip = _pick_private_ip(ips)
 
     except socket.gaierror:
