@@ -8,6 +8,14 @@ Changelog
 This page keeps a detailed human friendly rendering of what's new and changed
 in specific versions.
 
+.. _v2p0p2:
+
+v2.0.2
+
+Bug Fixes
+~~~~~~~~~
+- Fix a bug with retrieving the private ip.
+
 .. _v2p0p1:
 
 v2.0.1

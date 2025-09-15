@@ -1,3 +1,3 @@
-This release fixes an issue where retrieving a private IP on macOS could result in an error.
+This release fixes a bug with retrieving private ip.
 
-Changelog: https://sonyflake.readthedocs.io/en/latest/whats_new.html#v2-0-0
+Changelog: https://sonyflake.readthedocs.io/en/latest/whats_new.html#v2-0-2
