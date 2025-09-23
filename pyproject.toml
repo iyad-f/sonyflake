@@ -9,7 +9,7 @@ authors = [{ name = "Iyad" }]
 keywords = [
   "sonyflake",
   "sonyflake py",
-  "sonyflake",
+  "sonyflake.py",
   "snowflake",
   "snowflake py",
   "snowflake.py",
