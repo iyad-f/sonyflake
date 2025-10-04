@@ -11,6 +11,7 @@ in specific versions.
 .. _v2p0p2:
 
 v2.0.2
+------
 
 Bug Fixes
 ~~~~~~~~~
@@ -19,6 +20,7 @@ Bug Fixes
 .. _v2p0p1:
 
 v2.0.1
+------
 
 Bug Fixes
 ~~~~~~~~~
